@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { MsalGuard } from '@azure/msal-angular';
 
 export const routes: Routes = [
   {
@@ -15,12 +16,13 @@ export const routes: Routes = [
     path: 'carrito',
     loadComponent: () => import('./pages/carrito/carrito').then(m => m.Carrito),
     title: 'Carrito · LevelUp Gamer',
+    canActivate: [MsalGuard],
   },
   {
     path: 'pedidos',
     loadComponent: () => import('./pages/pedidos/pedidos').then(m => m.Pedidos),
     title: 'Mis pedidos · LevelUp Gamer',
-    // Mañana: canActivate: [MsalGuard]
+    canActivate: [MsalGuard],
   },
   { path: '**', redirectTo: '' },
 ];

@@ -1,10 +1,11 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection, importProvidersFrom } from '@angular/core';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import {
   MsalModule,
   MsalService,
+  MsalInterceptor,
   MSAL_INSTANCE,
   MSAL_GUARD_CONFIG,
   MSAL_INTERCEPTOR_CONFIG,
@@ -33,10 +34,6 @@ const REDIRECT_URI = 'http://localhost:4200';
 
 // ---------------------------------------------------------------------------
 // Instancia UNICA de MSAL.
-// NOTA: ya NO se usa APP_INITIALIZER manual. El manejo del redirect
-// (handleRedirectObservable) queda a cargo de MsalRedirectComponent,
-// agregado en app.html / app.ts, que es el mecanismo oficial recomendado
-// por Microsoft para apps standalone con flujo Redirect.
 // ---------------------------------------------------------------------------
 function msalInstanceFactory(): IPublicClientApplication {
   return new PublicClientApplication({
@@ -75,12 +72,31 @@ function msalGuardConfigFactory(): MsalGuardConfiguration {
 
 // ---------------------------------------------------------------------------
 // Configuración del Interceptor
+//
+// IMPORTANTE: el orden de las entradas en protectedResourceMap importa.
+// Las entradas mas especificas con scope null (recurso NO protegido) deben
+// ir ANTES que cualquier patron wildcard mas general que las englobe.
+// Si no, el wildcard matchea primero y fuerza login/redirect incluso en
+// rutas publicas como GET /productos (usado en la home, sin login).
+//
+// GET /productos es publico en el backend (SecurityConfig.java lo
+// permite sin JWT), asi que aqui tambien debe quedar sin scope, para que
+// MsalInterceptor jamas dispare acquireTokenRedirect al cargar la home.
 // ---------------------------------------------------------------------------
 function msalInterceptorConfigFactory(): MsalInterceptorConfiguration {
-  const protectedResourceMap = new Map<string, Array<string>>();
+  const protectedResourceMap = new Map<string, Array<string> | null>();
 
-  protectedResourceMap.set('http://localhost:8081/*', [BACKEND_SCOPE]); // mspedidos
-  protectedResourceMap.set('http://localhost:8082/*', [BACKEND_SCOPE]); // msproductos
+  // Publico: catalogo de productos (home y /catalogo lo llaman sin login).
+  protectedResourceMap.set('http://localhost:8080/productos', null);
+  protectedResourceMap.set('http://localhost:8080/productos/*', null);
+
+  // Protegido: mspedidos completo (crear/listar/cambiar estado de pedidos).
+  protectedResourceMap.set('http://localhost:8081/*', [BACKEND_SCOPE]);
+
+  // Protegido: cualquier otra ruta de msproductos que no sea GET publico
+  // (por ejemplo, si mas adelante se agrega un panel admin que haga
+  // POST/DELETE sobre /productos).
+  protectedResourceMap.set('http://localhost:8080/*', [BACKEND_SCOPE]);
 
   return {
     interactionType: InteractionType.Redirect,
@@ -108,6 +124,11 @@ export const appConfig: ApplicationConfig = {
     {
       provide: MSAL_INTERCEPTOR_CONFIG,
       useFactory: msalInterceptorConfigFactory,
+    },
+    {
+      provide: HTTP_INTERCEPTORS,
+      useClass: MsalInterceptor,
+      multi: true,
     },
     MsalService,
     MsalGuard,

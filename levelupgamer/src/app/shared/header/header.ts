@@ -9,6 +9,9 @@ import { InteractionStatus, AccountInfo } from '@azure/msal-browser';
 
 import { CarritoService } from '../../services/carrito.service';
 
+// Mismo scope configurado en app.config.ts (BACKEND_SCOPE).
+const BACKEND_SCOPE = 'api://260c8d4a-9eae-4da8-9e2b-76c587b25b85/access_as_user';
+
 @Component({
   selector: 'app-header',
   imports: [CommonModule, RouterLink, RouterLinkActive],
@@ -66,7 +69,12 @@ export class Header implements OnInit, OnDestroy {
   }
 
   login(): void {
-    this.msalService.loginRedirect();
+    // Se pide explicitamente el scope del backend. Sin esto, MSAL solo
+    // obtiene el token basico de perfil (openid profile email) y nunca
+    // genera un access token valido para llamar a mspedidos/msproductos.
+    this.msalService.loginRedirect({
+      scopes: ['User.Read', BACKEND_SCOPE],
+    });
   }
 
   logout(): void {

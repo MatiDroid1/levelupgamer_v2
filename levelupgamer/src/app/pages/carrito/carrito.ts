@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { MsalService } from '@azure/msal-angular';
 import { CarritoService } from '../../services/carrito.service';
 import { PedidoService } from '../../services/pedido.service';
 
@@ -13,11 +14,27 @@ export class Carrito {
   readonly carrito = inject(CarritoService);
   private readonly pedidoService = inject(PedidoService);
   private readonly router = inject(Router);
+  private readonly msalService = inject(MsalService);
 
-  // Mañana: sale del claim preferred_username del token. Hoy lo escribe el usuario.
-  readonly usuario = signal('demo@levelupgamer.cl');
+  // Se lee desde el claim preferred_username del ID token de la cuenta
+  // activa en MSAL. Si por algun motivo no hay cuenta activa todavia
+  // (carrera con el guard/redirect), cae a idTokenClaims.email o username
+  // como respaldo, y como ultimo recurso queda vacio (no se inventa un
+  // valor demo, porque romperia la trazabilidad del pedido con el usuario
+  // real logueado).
+  readonly usuario = signal(this.obtenerUsuarioActivo());
   readonly enviando = signal(false);
   readonly error = signal<string | null>(null);
+
+  private obtenerUsuarioActivo(): string {
+    const cuenta = this.msalService.instance.getActiveAccount();
+    if (!cuenta) return '';
+
+    const claims = cuenta.idTokenClaims as Record<string, unknown> | undefined;
+    const preferredUsername = claims?.['preferred_username'] as string | undefined;
+
+    return preferredUsername ?? cuenta.username ?? '';
+  }
 
   confirmar(): void {
     if (this.carrito.items().length === 0 || !this.usuario().trim()) return;

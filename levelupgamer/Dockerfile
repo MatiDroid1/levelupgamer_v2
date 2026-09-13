@@ -18,7 +18,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copia el build a la carpeta pública de nginx
 # Nota: según tu output puede ser dist/<app>/browser o dist/<app>
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist/levelupgamer/browser /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
